@@ -585,6 +585,16 @@ function analyze(file, stat) {
   };
 }
 
+// Sessions épinglées depuis le bureau : toujours présentes, même après des jours sans activité
+const PINS_FILE = path.join(__dirname, 'data', 'pins.json');
+let pins = new Set();
+try { pins = new Set(JSON.parse(fs.readFileSync(PINS_FILE, 'utf8')).ids || []); } catch { /* aucune */ }
+function setPin(id, on) {
+  if (on) pins.add(id); else pins.delete(id);
+  fs.mkdirSync(path.dirname(PINS_FILE), { recursive: true });
+  fs.writeFileSync(PINS_FILE, JSON.stringify({ ids: [...pins] }, null, 2));
+}
+
 let lastAgents = new Map();
 function collectAgents() {
   const cutoff = Date.now() - WINDOW_HOURS * 3600 * 1000;
@@ -595,19 +605,21 @@ function collectAgents() {
       const fp = path.join(full, f);
       try {
         const st = fs.statSync(fp);
-        if (st.mtimeMs >= cutoff && st.size > 0) files.push({ fp, st });
+        if ((st.mtimeMs >= cutoff || pins.has(f.slice(0, -6))) && st.size > 0) files.push({ fp, st });
       } catch { /* ignore */ }
     }
   }
-  files.sort((a, b) => b.st.mtimeMs - a.st.mtimeMs);
+  const pinnedFirst = (f) => (pins.has(path.basename(f.fp, '.jsonl')) ? 0 : 1);
+  files.sort((a, b) => pinnedFirst(a) - pinnedFirst(b) || b.st.mtimeMs - a.st.mtimeMs);
   const agents = [];
   for (const { fp, st } of files.slice(0, MAX_AGENTS * 2)) {
     try {
       const a = analyze(fp, st);
-      if (a.age <= WINDOW_HOURS * 3600) agents.push(a); // fichier touché récemment mais conversation ancienne : on ignore
+      a.pinned = pins.has(a.id);
+      if (a.pinned || a.age <= WINDOW_HOURS * 3600) agents.push(a); // fichier touché récemment mais conversation ancienne : on ignore
     } catch (err) { console.warn('skip', fp, err.message); }
   }
-  const out = agents.sort((x, y) => x.age - y.age).slice(0, MAX_AGENTS);
+  const out = agents.sort((x, y) => y.pinned - x.pinned || x.age - y.age).slice(0, MAX_AGENTS);
   lastAgents = new Map(out.map((a) => [a.id, a]));
   return out;
 }
@@ -672,6 +684,23 @@ http.createServer((req, res) => {
   if (url.pathname === '/api/history') {
     const n = Math.min(KEEP_DAYS, Math.max(1, Number(url.searchParams.get('days')) || 90));
     return json(res, 200, { days: historyList(n, true), fx });
+  }
+
+  if (url.pathname === '/api/pin' && req.method === 'POST') { // épingler : depuis cet ordinateur (jeton) ou le wifi (même origine)
+    const origin = req.headers.origin;
+    const ok = local ? ALLOWED_HOSTS.some((h) => origin === `http://${h}`) && req.headers['x-token'] === TOKEN : origin === `http://${req.headers.host}`;
+    if (!ok) return json(res, 403, { error: 'refusé' });
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 2000) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { id, pinned } = JSON.parse(body);
+        if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('id invalide');
+        setPin(id, !!pinned);
+        json(res, 200, { ok: true, pinned: !!pinned });
+      } catch (err) { json(res, 400, { error: err.message }); }
+    });
+    return;
   }
 
   if (url.pathname === '/api/resume' && req.method === 'POST') {

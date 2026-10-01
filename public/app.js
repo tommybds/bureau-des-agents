@@ -20,6 +20,7 @@ const HUB = { x: 7.6, z: 2 };     // carrefour entre les postes et le salon (rec
 const TOKEN = document.querySelector('meta[name=token]')?.content || '';
 // Réglages venus de config.json (via le serveur) : décor, costumes par projet, orientation des fenêtres
 let CONFIG = { decor: 'neutre', costumes: {}, fenetres: 'sud', etage: 3, etages: 3 };
+const pinTitle = (a) => (a.pinned ? '📌 ' : '') + a.title; // sessions épinglées (voir /api/pin)
 const costumeFor = (project) => Object.entries(CONFIG.costumes).find(([name]) => name.toLowerCase() === String(project).toLowerCase())?.[1];
 const params = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -1701,7 +1702,7 @@ function drawLabel(ag, d) {
   ctx.fillStyle = 'rgba(22,19,17,.86)'; roundRect(ctx, 4, 4, W - 8, Hh - 8, 26); ctx.fill();
   ctx.fillStyle = STATUS[d.status].color; ctx.beginPath(); ctx.arc(40, 50, 12, 0, 7); ctx.fill();
   ctx.fillStyle = '#f4efe8'; ctx.font = '700 38px -apple-system, "Segoe UI", sans-serif';
-  ctx.fillText(fitText(ctx, d.title, W - 90), 66, 63);
+  ctx.fillText(fitText(ctx, (d.pinned ? '📌 ' : '') + d.title, W - 90), 66, 63);
   ctx.font = '28px -apple-system, "Segoe UI", sans-serif';
   let sub;
   if (d.error && d.status === 'working') { ctx.fillStyle = '#f87171'; sub = `⚠ ${d.error.verb} en erreur`; }
@@ -1790,7 +1791,7 @@ function drawBoard(list) {
   }
   const lines = [];
   for (const a of withTodos) {
-    lines.push({ head: true, text: `${a.project} — ${a.title}`, color: STATUS[a.status].color });
+    lines.push({ head: true, text: `${a.project} — ${pinTitle(a)}`, color: STATUS[a.status].color });
     const open = a.todos.filter((t) => t.status !== 'completed'), done = a.todos.filter((t) => t.status === 'completed');
     const shown = [...open.slice(0, 5), ...done.slice(-Math.max(0, 5 - open.length))];
     for (const t of shown) lines.push(t);
@@ -2383,7 +2384,7 @@ function renderRoster(list) {
   const order = { working: 0, waiting: 1, idle: 2 };
   $('roster-list').innerHTML = list.filter(isVisible).sort((a, b) => order[a.status] - order[b.status]).map((a) => `
     <div class="row" data-id="${esc(a.id)}"><span class="dot ${a.status}"></span><div>
-      <b>${esc(a.title)}</b><small><span class="proj" style="background:#${projColor(a.project).getHexString()}"></span>${esc(a.project)} · ${a.status === 'working' && a.current ? esc(a.current.verb + ' ' + (a.current.detail || '')) : esc(ago(a.lastActivity))}</small>
+      <b>${esc(pinTitle(a))}</b><small><span class="proj" style="background:#${projColor(a.project).getHexString()}"></span>${esc(a.project)} · ${a.status === 'working' && a.current ? esc(a.current.verb + ' ' + (a.current.detail || '')) : esc(ago(a.lastActivity))}</small>
     </div></div>`).join('');
 }
 $('roster-list').addEventListener('click', (e) => {
@@ -2416,7 +2417,7 @@ function renderPanel(id) {
   const todos = a.todos || [];
   $('panel-body').innerHTML = `
     <span class="status-chip"><span class="dot ${a.status}"></span>${s.label}</span>
-    <h2>${esc(a.title)}</h2>
+    <h2>${esc(pinTitle(a))}</h2>
     <div class="meta">${esc(a.cwd || a.project)}${a.branch ? ' · ⎇ ' + esc(a.branch) : ''}<br>${esc(a.model || '')} · dernière activité ${esc(ago(a.lastActivity))}${a.subagents ? ` · ${a.subagents} sous-agent(s) actif(s)` : ''}${a.workload ? ` · ${a.workload} actions aujourd'hui` : ''}</div>
     ${a.status === 'working' ? `<div class="now">${a.phase === 'thinking' ? '<b>Réfléchit</b> au résultat de sa dernière action' : `<b>${esc(a.current?.verb || '')}</b> ${esc(a.current?.detail || '')}`}</div>` : ''}
     ${a.error ? `<div class="err"><b>⚠ ${esc(a.error.verb)} a échoué</b> (${esc(hhmm(a.error.ts))})<br>${esc(a.error.text)}</div>` : ''}
@@ -2427,6 +2428,17 @@ function renderPanel(id) {
 }
 function renderPanelActions(id) {
   const a = agentsData.find((x) => x.id === id); if (!a) return;
+  renderPanelActionsInner(a);
+  $('panel-actions').querySelector('.btns')?.insertAdjacentHTML('beforeend', `<button class="ghost" data-act="pin">${a.pinned ? '📌 Désépingler' : '📌 Épingler'}</button>`);
+}
+async function togglePin(a) {
+  try {
+    const r = await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN }, body: JSON.stringify({ id: a.id, pinned: !a.pinned }) });
+    if (!r.ok) throw new Error((await r.json()).error);
+    a.pinned = !a.pinned; renderPanelActions(a.id); toast(a.pinned ? '📌 Épinglé : il reste au bureau même inactif' : 'Épingle retirée'); poll();
+  } catch (err) { toast('Épingle impossible : ' + err.message); }
+}
+function renderPanelActionsInner(a) {
   const inApp = a.entrypoint && a.entrypoint !== 'cli';
   if (a.source === 'cowork') { // Cowork tourne dans l'app Claude : on ne peut pas la reprendre au Terminal
     $('panel-actions').innerHTML = `<h4>Actions</h4><div class="btns"><button class="ghost" data-act="follow">🎥 Suivre</button><button class="ghost" data-act="screen">🖥 Voir son écran</button></div><div id="reply"><div class="note">Session Cowork : pour lui répondre, ouvre-la dans l'app Claude.</div><div class="msg"></div></div>`;
@@ -2456,6 +2468,7 @@ $('panel-actions').addEventListener('click', async (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act; if (!act || !openId) return;
   const a = agentsData.find((x) => x.id === openId); if (!a) return;
   const msg = $('panel-actions').querySelector('.msg');
+  if (act === 'pin') return togglePin(a);
   if (act === 'follow') { closePanel(); setMode('follow', { id: a.id }); }
   if (act === 'screen') { closePanel(); setMode('screen', { id: a.id }); }
   if (act === 'copy') {

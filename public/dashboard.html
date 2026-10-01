@@ -27,6 +27,8 @@
   h2 .count { background: var(--card2); border-radius: 999px; padding: 1px 8px; color: var(--text); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
   .muted { color: var(--muted); }
+  .pin { background: none; border: 0; cursor: pointer; font-size: 13px; padding: 0 4px; opacity: .25; filter: grayscale(1); }
+  .pin:hover, .pin.on { opacity: 1; filter: none; }
   .proj { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .proj i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
 
@@ -174,6 +176,14 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const TOKEN = document.querySelector('meta[name=token]').content;
+// épingler une session : elle reste affichée même inactive (partagé avec le bureau 3D)
+const pinBtn = (a) => `<button class="pin${a.pinned ? ' on' : ''}" data-pin="${esc(a.id)}" data-on="${a.pinned ? 1 : 0}" title="${a.pinned ? 'Désépingler' : 'Épingler : toujours affiché'}">📌</button>`;
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-pin]'); if (!b) return;
+  e.stopPropagation(); b.disabled = true;
+  try { await fetch('/api/pin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN }, body: JSON.stringify({ id: b.dataset.pin, pinned: b.dataset.on !== '1' }) }); }
+  finally { load(); }
+}, true);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hashHue = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
 const color = (name) => `hsl(${hashHue(name)}, 60%, 55%)`;
@@ -245,7 +255,7 @@ function render() {
   const drafts = Object.fromEntries([...document.querySelectorAll('.wait textarea')].map((t) => [t.closest('.wait').dataset.id, t.value]));
   $('waiting').innerHTML = W.length ? W.map((a) => `
     <div class="card wait" data-id="${esc(a.id)}">
-      <div class="top"><b>${esc(a.title)}</b><span class="since" data-since="${esc(a.lastActivity)}">${since(a.lastActivity)}</span></div>
+      <div class="top"><b>${esc(a.title)}</b>${pinBtn(a)}<span class="since" data-since="${esc(a.lastActivity)}">${since(a.lastActivity)}</span></div>
       <span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span>
       <p>${esc(a.lastText || '…')}</p>
       ${a.source === 'cowork' ? '<div class="btns"><span class="muted">Session Cowork : réponds-lui dans l’app Claude</span></div>' : `<div class="btns">${data.remote ? '' : `<button class="ghost" data-act="reply">Répondre</button><button class="ghost" data-act="open">Ouvrir dans le Terminal</button>`}<button class="ghost" data-act="copy">Copier la commande</button></div>`}
@@ -257,11 +267,11 @@ function render() {
   // au travail / en pause
   const todo = (a) => { const t = a.todos || []; if (!t.length) return '<span class="muted">—</span>'; const d = t.filter((x) => x.status === 'completed').length; return `<div class="bar"><i style="width:${(d / t.length) * 100}%"></i></div><small class="muted">${d}/${t.length}</small>`; };
   $('working').innerHTML = K.length ? `<tr><th>Session</th><th>Projet</th><th>Action en cours</th><th class="hide-sm">Tâches</th><th class="hide-sm">Aujourd'hui</th></tr>` + K.map((a) => `
-    <tr><td><span class="dot working"></span> <b>${esc(a.title)}</b>${a.subagents ? ` <small class="muted">+${a.subagents} sous-agent${a.subagents > 1 ? 's' : ''}</small>` : ''}${a.error ? `<div class="err">⚠ ${esc(a.error.verb)} : ${esc(a.error.text)}</div>` : ''}</td>
+    <tr><td><span class="dot working"></span> <b>${esc(a.title)}</b>${pinBtn(a)}${a.subagents ? ` <small class="muted">+${a.subagents} sous-agent${a.subagents > 1 ? 's' : ''}</small>` : ''}${a.error ? `<div class="err">⚠ ${esc(a.error.verb)} : ${esc(a.error.text)}</div>` : ''}</td>
     <td><span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span></td>
     <td class="act">${a.phase === 'thinking' ? 'réfléchit…' : `${esc(a.current?.verb || '')} <span>${esc(a.current?.detail || '')}</span>`}</td>
     <td class="hide-sm">${todo(a)}</td><td class="hide-sm muted">${a.workload || 0} actions</td></tr>`).join('') : `<tr><td class="empty">Aucun agent au travail.</td></tr>`;
-  $('idle').innerHTML = I.map((a) => `<tr><td><span class="dot idle"></span> ${esc(a.title)}</td><td><span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span></td><td class="muted">dernière activité il y a ${since(a.lastActivity)}</td></tr>`).join('');
+  $('idle').innerHTML = I.map((a) => `<tr><td><span class="dot idle"></span> ${esc(a.title)}${pinBtn(a)}</td><td><span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span></td><td class="muted">dernière activité il y a ${since(a.lastActivity)}</td></tr>`).join('');
   $('idle-box').style.display = I.length ? '' : 'none';
 
   // chiffres du jour vs hier

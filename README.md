@@ -39,6 +39,8 @@ Une page légère, sans 3D, lisible sur téléphone :
 
 L'onglet affiche le nombre d'agents qui t'attendent, par exemple « (3) Bureau des agents ».
 
+**Épingler** une session (📌 dans le tableau de bord, ou « Épingler » dans la fiche d'un agent du bureau 3D) la garde affichée en tête de liste, même après des jours sans activité. Les épingles sont partagées entre le bureau 3D, le tableau de bord et le téléphone, et gardées dans `data/pins.json`. Elles sont propres au bureau : l'app Claude ne rend pas ses propres épingles lisibles.
+
 **Coût estimé** : calculé à partir des tokens au tarif public de l'API, modèle par modèle et cache compris, puis converti en euros au taux BCE du jour. Ce n'est pas le prix d'un abonnement Claude. Les tarifs sont écrits dans `server.js` ; `config.json` peut les corriger.
 
 **Temps de travail** : périodes où un agent enchaîne les réponses à moins de 5 minutes d'écart.
