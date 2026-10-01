@@ -160,6 +160,10 @@ npm run lan
 
 Le serveur affiche alors un lien avec une clé secrète, à ouvrir une fois depuis le téléphone, sur le même wifi. Sans ce lien, l'accès est refusé. Depuis le wifi, on peut tout regarder mais pas ouvrir de Terminal. La connexion n'est pas chiffrée : à réserver à un réseau de confiance.
 
+### Hors de chez soi, avec Tailscale
+
+Si [Tailscale](https://tailscale.com) est installé sur l'ordinateur et sur le téléphone, `npm run lan` affiche aussi un lien « Via Tailscale » en `100.x.y.z`. Il marche de partout (4G, autre wifi), tant que l'ordinateur est allumé et connecté à Tailscale. Le trafic passe par le réseau privé Tailscale, chiffré, et rien n'est exposé sur internet. La même clé est demandée.
+
 ## Confidentialité et sécurité
 
 - Le serveur **lit seulement** `~/.claude/projects`. Il n'écrit que dans `data/`.

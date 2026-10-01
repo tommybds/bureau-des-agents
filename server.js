@@ -745,15 +745,18 @@ http.createServer((req, res) => {
     const probe = require('dgram').createSocket('udp4');
     const fallback = () => {
       const all = Object.entries(os.networkInterfaces()).flatMap(([name, list]) => (list || []).filter((i) => i.family === 'IPv4' && !i.internal).map((i) => ({ name, ip: i.address })));
-      const real = all.filter((i) => /^(en|eth|wl)/.test(name(i))); // interfaces physiques
+      const real = all.filter((i) => /^(en|eth|wl)/.test(name(i)) && !tailscale.includes(i.ip)); // interfaces physiques
       (real.length ? real : all).forEach((i) => show(i.ip));
       if (!all.length) console.log('  📱  Aucun réseau trouvé : le Mac est-il connecté au wifi ?');
     };
     const name = (i) => i.name;
+    // Tailscale (adresses 100.64.0.0/10) : le même lien marche de partout, le trafic est chiffré par Tailscale.
+    const tailscale = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.address)).map((i) => i.address);
+    tailscale.forEach((ip) => console.log(`  🌍  Via Tailscale, de n'importe où : http://${ip}:${PORT}/?k=${LAN_KEY}\n      ou le tableau de bord : http://${ip}:${PORT}/dashboard?k=${LAN_KEY}`));
     probe.on('error', () => { try { probe.close(); } catch { /* déjà fermé */ } fallback(); });
     probe.connect(53, '1.1.1.1', () => { // aucun paquet n'est envoyé : on lit juste l'adresse locale choisie par le système
       const ip = probe.address().address; probe.close();
-      if (ip && ip !== '0.0.0.0') show(ip); else fallback();
+      if (ip && ip !== '0.0.0.0' && !tailscale.includes(ip)) show(ip); else fallback();
     });
   }
 });
