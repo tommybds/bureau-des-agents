@@ -23,10 +23,12 @@ const TOKEN = crypto.randomBytes(16).toString('hex'); // protège /api/resume de
 const ALLOWED_HOSTS = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
 
 // Météo en direct (Open-Meteo, gratuit, sans clé) : WEATHER=off pour couper
-// Réglages facultatifs : config.json (voir config.example.json). Sans ce fichier, le bureau est neutre et sans météo.
+// Réglages : config.json s'il existe (voir config.example.json), sinon le bureau d'origine, à Saint-Herblain
 let config = {};
-try { config = JSON.parse(fs.readFileSync(process.env.CONFIG_FILE || path.join(__dirname, 'config.json'), 'utf8')); } catch (err) {
+const readConfig = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+try { config = readConfig(process.env.CONFIG_FILE || path.join(__dirname, 'config.json')); } catch (err) {
   if (err.code !== 'ENOENT') console.warn('  ⚠️  config.json illisible :', err.message);
+  else try { config = readConfig(path.join(__dirname, 'exemples', 'bureau-saint-herblain.json')); } catch { /* décor neutre */ }
 }
 const lieu = config.lieu || {};
 const num = (...v) => v.map(Number).find((x) => Number.isFinite(x) && x !== 0);

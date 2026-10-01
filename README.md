@@ -108,7 +108,9 @@ Dans la fiche d'un agent ou dans le tableau de bord, **Envoyer via le Terminal**
 
 ## Personnaliser
 
-Tout est facultatif. Sans réglage, le décor est neutre et il n'y a pas de météo.
+Tout est facultatif. Sans réglage, c'est le bureau d'origine : 4e étage d'un immeuble de Saint-Herblain, fenêtres à l'est, météo en direct de Saint-Herblain (réglage dans `exemples/bureau-saint-herblain.json`).
+
+Pour un décor neutre ou ton propre lieu, pars de l'exemple et adapte-le :
 
 ```bash
 cp config.example.json config.json
@@ -118,16 +120,12 @@ cp config.example.json config.json
 |---|---|
 | `lieu.nom`, `lieu.latitude`, `lieu.longitude` | active la météo en direct de cet endroit ([Open-Meteo](https://open-meteo.com), gratuit et sans clé) : vrais lever et coucher du soleil, nuages, pluie, neige, orage, température |
 | `lieu.fenetres` | côté où donnent les fenêtres : `est`, `sud`, `ouest` ou `nord`. Décide à quelle heure le soleil entre |
-| `batiment.etage`, `batiment.etages` | notre étage et le nombre d'étages de l'immeuble (3 et 3 par défaut : dernier étage) |
-| `decor` | `neutre` (par défaut) ou `mon-bureau` |
+| `batiment.etage`, `batiment.etages` | notre étage et le nombre d'étages de l'immeuble (4 et 5 dans le réglage d'origine) |
+| `decor` | `mon-bureau` (réglage d'origine : affiche, motos devant l'entrée) ou `neutre` |
 | `costumes` | costume par projet, par exemple `{ "MON-PROJET": "pecheur" }` (casque, chemise bleue, canne à pêche) |
 | `tarifs` | corrige ou ajoute un tarif de modèle, par exemple `{ "claude-opus-5-5": { "in": 4, "out": 20, "read": 0.2 } }` en dollars par million de tokens |
 
-`config.json` n'est pas versionné. Le dossier `exemples/` contient le réglage du bureau d'origine, à Saint-Herblain :
-
-```bash
-cp exemples/bureau-saint-herblain.json config.json
-```
+`config.json` n'est pas versionné ; dès qu'il existe, il remplace entièrement le réglage par défaut.
 
 Variables d'environnement :
 
@@ -166,7 +164,7 @@ Le serveur affiche alors un lien avec une clé secrète, à ouvrir une fois depu
 - Par défaut, il n'écoute que sur la machine (127.0.0.1). Les pages affichent les titres de sessions, des demandes et des extraits de réponses : ne l'expose pas sur internet.
 - `data/` contient des noms de projets et de fichiers, et la clé du mode wifi. Il est exclu du dépôt, comme `config.json`.
 - La route qui ouvre le Terminal exige un jeton généré au démarrage, refuse les requêtes venant d'autres sites et n'est jamais accessible depuis le wifi.
-- Seuls appels sortants : le CDN de Three.js, Open-Meteo si un lieu est réglé, et frankfurter.app pour le taux de change.
+- Seuls appels sortants : le CDN de Three.js, Open-Meteo pour la météo du lieu réglé (Saint-Herblain par défaut), et frankfurter.app pour le taux de change. `WEATHER=off` coupe les deux derniers.
 
 ## Organisation du code
 
