@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="token" content="__TOKEN__">
+<title>Tableau de bord des agents</title>
+<style>
+  :root {
+    --bg: #14110f; --card: #1d1917; --card2: #241f1c; --line: rgba(255,255,255,.09);
+    --text: #f4efe8; --muted: #a39b91; --accent: #d97757;
+    --working: #4ade80; --waiting: #fbbf24; --idle: #8b95a5; --error: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", sans-serif; }
+  a { color: inherit; }
+  button, select, textarea { font: inherit; color: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; margin-right: auto; }
+  header h1 em { font-style: normal; color: var(--accent); }
+  .chip { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 600; white-space: nowrap; text-decoration: none; display: inline-flex; gap: 8px; align-items: center; }
+  a.chip:hover, button.chip:hover { border-color: rgba(255,255,255,.3); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+  .dot.working { background: var(--working); box-shadow: 0 0 8px var(--working); } .dot.waiting { background: var(--waiting); } .dot.idle { background: var(--idle); }
+  h2 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h2 .count { background: var(--card2); border-radius: 999px; padding: 1px 8px; color: var(--text); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .muted { color: var(--muted); }
+  .proj { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .proj i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+  /* ils t'attendent */
+  #waiting { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .wait { border-color: rgba(251,191,36,.45); background: linear-gradient(180deg, rgba(251,191,36,.07), transparent 60%), var(--card); }
+  .wait .top { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+  .wait b { font-size: 15px; }
+  .wait .since { color: var(--waiting); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .wait p { margin: 8px 0; color: #d9d2c9; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  button.ghost { background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
+  button.ghost:hover { border-color: rgba(255,255,255,.3); }
+  button.ghost.on { border-color: var(--accent); color: var(--accent); }
+  .reply { display: none; margin-top: 8px; } .reply.open { display: block; }
+  .reply textarea { width: 100%; min-height: 64px; background: #161311; border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+  .msg { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .empty { color: var(--muted); padding: 10px 2px; }
+
+  /* au travail */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.act { font: 12px/1.5 ui-monospace, "SF Mono", monospace; color: #e8b59f; max-width: 420px; }
+  td.act span { color: var(--muted); }
+  .err { color: var(--error); font-size: 12px; }
+  .bar { height: 6px; background: var(--card2); border-radius: 3px; overflow: hidden; min-width: 70px; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .tablewrap { overflow-x: auto; padding: 0; }
+  details summary { cursor: pointer; color: var(--muted); list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+
+  /* chiffres */
+  #kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .kpi b { display: block; font-size: 26px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .kpi small { color: var(--muted); display: block; }
+  .kpi .delta { font-size: 12px; margin-top: 4px; color: var(--muted); }
+  .up { color: var(--working); } .down { color: #f0a58f; }
+
+  /* graphiques */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chart { display: flex; align-items: flex-end; gap: 3px; height: 150px; padding-top: 8px; }
+  .chart .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; position: relative; }
+  .chart .col i { width: 100%; background: #8a7466; border-radius: 3px 3px 0 0; min-height: 2px; display: block; }
+  .chart .col.now i { background: var(--accent); }
+  .chart .col.zero i { background: #3a322d; }
+  .chart .col span { font-size: 10px; color: var(--muted); margin-top: 4px; white-space: nowrap; }
+  .chart .col:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #000; border: 1px solid var(--line); padding: 3px 7px; border-radius: 6px; font-size: 11px; white-space: nowrap; z-index: 3; pointer-events: none; }
+  .seg { display: inline-flex; background: var(--card2); border-radius: 8px; padding: 2px; gap: 2px; text-transform: none; letter-spacing: 0; }
+  .seg button { background: none; border: 0; padding: 3px 9px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; }
+  .seg button.on { background: var(--accent); color: #1a0f0a; }
+
+  .total { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .total b { color: var(--text); font-size: 16px; font-variant-numeric: tabular-nums; }
+  #totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .tot b { display: block; font-size: 28px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .tot small { color: var(--muted); display: block; }
+  .tot .sub { margin-top: 6px; color: #d9d2c9; font-size: 13px; }
+
+  /* frise */
+  .tl-row { display: grid; grid-template-columns: 210px 1fr; gap: 10px; align-items: center; padding: 5px 0; }
+  .tl-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .tl-track { position: relative; height: 16px; background: var(--card2); border-radius: 4px; overflow: hidden; }
+  .tl-track i { position: absolute; top: 0; bottom: 0; border-radius: 2px; min-width: 2px; }
+  .tl-track i.w { background: var(--working); } .tl-track i.a { background: var(--waiting); opacity: .8; }
+  .tl-axis { position: relative; height: 16px; margin-left: 220px; font-size: 10px; color: var(--muted); }
+  .tl-axis span { position: absolute; transform: translateX(-50%); }
+  .tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  /* projets */
+  #projects { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .pcard { border-left-width: 4px; }
+  .pcard h3 { margin: 0 0 2px; font-size: 16px; display: flex; gap: 8px; align-items: center; }
+  .pcard .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+  .pcard .nums b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .pcard .nums small { color: var(--muted); font-size: 11px; }
+  .pcard .files { font: 12px/1.6 ui-monospace, "SF Mono", monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 34px; margin-top: 8px; }
+  .spark i { flex: 1; background: currentColor; opacity: .55; border-radius: 2px 2px 0 0; min-height: 2px; }
+  .spark i:last-child { opacity: 1; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 18px; }
+
+  @media (max-width: 760px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .tl-row { grid-template-columns: 110px 1fr; } .tl-axis { margin-left: 120px; }
+    td.act { max-width: 200px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tableau de bord des <em>agents</em></h1>
+    <span class="chip"><span class="dot working"></span><span id="n-working">0</span> au travail</span>
+    <span class="chip"><span class="dot waiting"></span><span id="n-waiting">0</span> t'attendent</span>
+    <span class="chip"><span class="dot idle"></span><span id="n-idle">0</span> en pause</span>
+    <span class="chip" id="clock">—</span>
+    <span class="chip muted" id="source">connexion…</span>
+    <a class="chip" href="/">🏢 Bureau 3D</a>
+  </header>
+
+  <h2>Ils t'attendent <span class="count" id="c-waiting">0</span></h2>
+  <div id="waiting"></div>
+
+  <h2>Au travail <span class="count" id="c-working">0</span></h2>
+  <div class="card tablewrap"><table id="working"></table></div>
+
+  <details id="idle-box"><summary><h2 style="display:inline-flex">En pause <span class="count" id="c-idle">0</span> <span style="text-transform:none;letter-spacing:0;font-weight:400">— afficher</span></h2></summary>
+    <div class="card tablewrap"><table id="idle"></table></div>
+  </details>
+
+  <h2>Aujourd'hui, comparé à hier</h2>
+  <div id="kpis"></div>
+
+  <div class="grid2">
+    <div>
+      <h2>Activité par heure</h2>
+      <div class="card"><div class="chart" id="hours"></div></div>
+    </div>
+    <div>
+      <h2>Historique
+        <span class="seg" id="seg-period"><button data-v="days" class="on">14 j</button><button data-v="d30">30 j</button><button data-v="d90">90 j</button><button data-v="weeks">Semaines</button><button data-v="months">Mois</button></span>
+        <span class="seg" id="seg-metric"><button data-v="output" class="on">Tokens</button><button data-v="cost">Coût</button><button data-v="activeMs">Temps</button><button data-v="calls">Actions</button></span>
+      </h2>
+      <div class="card"><div class="chart" id="history"></div><div class="total" id="history-total"></div></div>
+    </div>
+  </div>
+
+  <h2>Cumuls</h2>
+  <div id="totals"></div>
+
+  <h2>Frise de la journée <span class="legend"><span><i style="background:var(--working)"></i>travaille</span><span><i style="background:var(--waiting)"></i>t'attend</span><span><i style="background:var(--card2)"></i>pause</span></span></h2>
+  <div class="card"><div id="timeline"></div><div class="tl-axis" id="tl-axis"></div></div>
+
+  <h2>Par projet <span class="seg" id="seg-proj"><button data-v="today" class="on">Aujourd'hui</button><button data-v="7">7 jours</button><button data-v="30">30 jours</button></span></h2>
+  <div id="projects"></div>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const TOKEN = document.querySelector('meta[name=token]').content;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hashHue = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+const color = (name) => `hsl(${hashHue(name)}, 60%, 55%)`;
+const fmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' G' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' M' : n >= 1e3 ? Math.round(n / 1e3) + ' k' : String(Math.round(n))).replace('.', ',');
+const dur = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
+const since = (iso) => { const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); return s < 60 ? `${Math.floor(s)} s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`; };
+let fx = { eurPerUsd: 0.92, live: false };
+const eur = (usd) => (usd * fx.eurPerUsd).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: usd * fx.eurPerUsd >= 100 ? 0 : 2 });
+const METRIC = { output: { label: 'tokens générés', f: fmt }, cost: { label: 'coût estimé', f: eur }, activeMs: { label: 'temps de travail', f: dur }, calls: { label: 'actions', f: (n) => String(n) } };
+
+let data = null, hist = [], period = 'days', metric = 'output', projRange = 'today';
+const openReply = new Set();
+
+function seg(id, set) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...$(id).children].forEach((x) => x.classList.toggle('on', x === b)); set(b.dataset.v); render();
+  });
+}
+seg('seg-period', (v) => (period = v)); seg('seg-metric', (v) => (metric = v)); seg('seg-proj', (v) => (projRange = v));
+
+async function load() {
+  try {
+    const r = await fetch('/api/agents', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json(); fx = data.stats.fx || fx;
+    $('source').textContent = '● en direct';
+    render();
+  } catch { $('source').textContent = 'serveur injoignable'; }
+}
+async function loadHistory() {
+  try { const r = await fetch('/api/history?days=800', { cache: 'no-store' }); hist = (await r.json()).days; render(); } catch { /* on réessaiera */ }
+}
+
+function bars(el, items) { // items : { v, label, tip, now }
+  const max = Math.max(1, ...items.map((i) => i.v));
+  el.innerHTML = items.map((i) => `<div class="col ${i.now ? 'now' : ''} ${i.v ? '' : 'zero'}" data-tip="${esc(i.tip)}"><i style="height:${Math.max(1.5, (i.v / max) * 100)}%"></i><span>${esc(i.label ?? '')}</span></div>`).join('');
+}
+
+function aggregate(days, kind) {
+  const nDays = { days: 14, d30: 30, d90: 90 }[kind];
+  if (nDays) return days.slice(-nDays).map((d, i, arr) => ({ key: d.date, label: nDays > 30 ? (+d.date.slice(8) === 1 || i === 0 ? `${+d.date.slice(8)}/${+d.date.slice(5, 7)}` : '') : nDays > 14 ? (i % 2 ? '' : String(+d.date.slice(8))) : String(+d.date.slice(8)), tip: new Date(d.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }), d }));
+  const groups = new Map();
+  for (const d of days) {
+    const dt = new Date(d.date + 'T12:00');
+    let key, label;
+    if (kind === 'weeks') { const m = new Date(dt); m.setDate(dt.getDate() - ((dt.getDay() + 6) % 7)); key = m.toISOString().slice(0, 10); label = `${m.getDate()}/${m.getMonth() + 1}`; }
+    else { key = d.date.slice(0, 7); label = dt.toLocaleDateString('fr-FR', { month: 'short' }); }
+    const g = groups.get(key) || { key, label, tip: kind === 'weeks' ? `semaine du ${label}` : dt.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), d: { output: 0, cost: 0, activeMs: 0, calls: 0 } };
+    for (const k of ['output', 'cost', 'activeMs', 'calls']) g.d[k] += d[k] || 0;
+    groups.set(key, g);
+  }
+  const all = [...groups.values()], first = all.findIndex((g) => g.d.output || g.d.calls); // pas de périodes vides avant le début de l'historique
+  return all.slice(Math.max(0, first)).slice(kind === 'weeks' ? -26 : -18); // au plus six mois de semaines, un an et demi de mois
+}
+
+function render() {
+  if (!data) return;
+  const { agents, stats, weather } = data;
+  const by = (s) => agents.filter((a) => a.status === s);
+  const W = by('waiting').sort((a, b) => Date.parse(a.lastActivity) - Date.parse(b.lastActivity)), K = by('working'), I = by('idle');
+  for (const [k, l] of [['working', K], ['waiting', W], ['idle', I]]) { $('n-' + k).textContent = l.length; $('c-' + k).textContent = l.length; }
+  document.title = (W.length ? `(${W.length}) ` : '') + 'Tableau de bord des agents';
+  const now = new Date();
+  $('clock').textContent = `${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}${weather && typeof weather.temp === 'number' ? ` · ${Math.round(weather.temp)}° ${weather.place}` : ''}`;
+
+  // ils t'attendent
+  const focus = document.activeElement?.closest?.('.wait')?.dataset.id, text = document.activeElement?.tagName === 'TEXTAREA' ? document.activeElement.value : null;
+  const drafts = Object.fromEntries([...document.querySelectorAll('.wait textarea')].map((t) => [t.closest('.wait').dataset.id, t.value]));
+  $('waiting').innerHTML = W.length ? W.map((a) => `
+    <div class="card wait" data-id="${esc(a.id)}">
+      <div class="top"><b>${esc(a.title)}</b><span class="since" data-since="${esc(a.lastActivity)}">${since(a.lastActivity)}</span></div>
+      <span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span>
+      <p>${esc(a.lastText || '…')}</p>
+      ${a.source === 'cowork' ? '<div class="btns"><span class="muted">Session Cowork : réponds-lui dans l’app Claude</span></div>' : `<div class="btns">${data.remote ? '' : `<button class="ghost" data-act="reply">Répondre</button><button class="ghost" data-act="open">Ouvrir dans le Terminal</button>`}<button class="ghost" data-act="copy">Copier la commande</button></div>`}
+      <div class="reply ${openReply.has(a.id) ? 'open' : ''}"><textarea placeholder="Ta réponse… (⌘ + Entrée pour envoyer)">${esc(drafts[a.id] || '')}</textarea><div class="btns" style="margin-top:6px"><button class="ghost on" data-act="send">Envoyer via le Terminal</button></div></div>
+      <div class="msg"></div>
+    </div>`).join('') : `<div class="empty">Personne ne t'attend. 🎉</div>`;
+  if (focus && text != null) { const t = document.querySelector(`.wait[data-id="${CSS.escape(focus)}"] textarea`); if (t) { t.focus(); t.setSelectionRange(text.length, text.length); } }
+
+  // au travail / en pause
+  const todo = (a) => { const t = a.todos || []; if (!t.length) return '<span class="muted">—</span>'; const d = t.filter((x) => x.status === 'completed').length; return `<div class="bar"><i style="width:${(d / t.length) * 100}%"></i></div><small class="muted">${d}/${t.length}</small>`; };
+  $('working').innerHTML = K.length ? `<tr><th>Session</th><th>Projet</th><th>Action en cours</th><th class="hide-sm">Tâches</th><th class="hide-sm">Aujourd'hui</th></tr>` + K.map((a) => `
+    <tr><td><span class="dot working"></span> <b>${esc(a.title)}</b>${a.subagents ? ` <small class="muted">+${a.subagents} sous-agent${a.subagents > 1 ? 's' : ''}</small>` : ''}${a.error ? `<div class="err">⚠ ${esc(a.error.verb)} : ${esc(a.error.text)}</div>` : ''}</td>
+    <td><span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span></td>
+    <td class="act">${a.phase === 'thinking' ? 'réfléchit…' : `${esc(a.current?.verb || '')} <span>${esc(a.current?.detail || '')}</span>`}</td>
+    <td class="hide-sm">${todo(a)}</td><td class="hide-sm muted">${a.workload || 0} actions</td></tr>`).join('') : `<tr><td class="empty">Aucun agent au travail.</td></tr>`;
+  $('idle').innerHTML = I.map((a) => `<tr><td><span class="dot idle"></span> ${esc(a.title)}</td><td><span class="proj"><i style="background:${color(a.project)}"></i>${esc(a.project)}</span></td><td class="muted">dernière activité il y a ${since(a.lastActivity)}</td></tr>`).join('');
+  $('idle-box').style.display = I.length ? '' : 'none';
+
+  // chiffres du jour vs hier
+  const today = stats.history?.at(-1) || {}, yest = stats.history?.at(-2) || {};
+  const delta = (t, y, f) => { if (!y) return `<div class="delta">hier : ${f(0)}</div>`; const p = Math.round(((t - y) / y) * 100); return `<div class="delta">hier : ${f(y)} <span class="${p >= 0 ? 'up' : 'down'}">(${p >= 0 ? '+' : ''}${p} %)</span></div>`; };
+  const calls = stats.hours.reduce((a, b) => a + b, 0);
+  $('kpis').innerHTML = [
+    ['Tokens générés', fmt(stats.tokens.output), delta(stats.tokens.output, yest.output, fmt)],
+    ['Actions', calls, delta(calls, yest.calls, String)],
+    ['Réponses', stats.messages, delta(stats.messages, yest.messages, String)],
+    ['Sessions', stats.sessions, delta(stats.sessions, yest.sessions, String)],
+    ['Temps de travail des agents', dur(stats.activeMs || 0), delta(stats.activeMs || 0, yest.activeMs, dur)],
+    ['Coût estimé (tarif API)', eur(stats.cost || 0), delta(stats.cost || 0, yest.cost, eur)],
+  ].map(([l, v, d]) => `<div class="card kpi"><small>${l}</small><b>${v}</b>${d}</div>`).join('');
+
+  // activité par heure
+  const h = now.getHours();
+  bars($('hours'), stats.hours.map((v, i) => ({ v, label: i % 3 === 0 ? `${i}h` : '', tip: `${i}h : ${v} actions`, now: i === h })));
+
+  // historique : 14 jours, semaines ou mois
+  const src = hist.length ? hist : (stats.history || []);
+  const items = aggregate(src, period), m = METRIC[metric];
+  bars($('history'), items.map((g, i) => ({ v: g.d[metric] || 0, label: g.label, tip: `${g.tip} : ${m.f(g.d[metric] || 0)}`, now: i === items.length - 1 })));
+  const periodTotal = items.reduce((a, g) => a + (g.d[metric] || 0), 0), unit = { weeks: 'semaine', months: 'mois' }[period] || 'jour';
+  const nonEmpty = items.filter((g) => g.d[metric]).length || 1;
+  $('history-total').innerHTML = `<span>Total ${period === 'weeks' ? `des ${items.length} semaines` : period === 'months' ? `des ${items.length} mois` : `des ${items.length} jours`} : <b>${m.f(periodTotal)}</b> ${m.label}</span><span>moyenne : <b>${m.f(periodTotal / nonEmpty)}</b> par ${unit} actif</span>`;
+
+  // cumuls : 7 jours, 30 jours, mois en cours, tout l'historique
+  const sumOf = (arr) => arr.reduce((a, d) => ({ cost: a.cost + (d.cost || 0), output: a.output + (d.output || 0), activeMs: a.activeMs + (d.activeMs || 0), calls: a.calls + (d.calls || 0) }), { cost: 0, output: 0, activeMs: 0, calls: 0 });
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, first = src.find((d) => d.calls || d.output);
+  const blocks = [
+    ["Aujourd'hui", sumOf(src.slice(-1))], ['7 derniers jours', sumOf(src.slice(-7))], ['30 derniers jours', sumOf(src.slice(-30))],
+    [`Ce mois-ci (${now.toLocaleDateString('fr-FR', { month: 'long' })})`, sumOf(src.filter((d) => d.date.startsWith(ym)))],
+    [first ? `Depuis le ${new Date(first.date + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : "Tout l'historique", sumOf(src)],
+  ];
+  $('totals').innerHTML = blocks.map(([l, t]) => `<div class="card tot"><small>${esc(l)}</small><b>${eur(t.cost)}</b><div class="sub">${fmt(t.output)} tokens · ${dur(t.activeMs)} de travail · ${t.calls} actions</div></div>`).join('');
+
+  // frise de la journée
+  const tl = stats.timeline || [];
+  if (tl.length) {
+    const t0 = Math.min(...tl.map((s) => s.intervals[0][0])), start = new Date(t0); start.setMinutes(0, 0, 0);
+    const end = Date.now(), span = Math.max(3600000, end - start.getTime());
+    const x = (t) => ((t - start.getTime()) / span) * 100;
+    $('timeline').innerHTML = tl.map((s) => {
+      let segs = '';
+      s.intervals.forEach(([a, b, endTurn], i) => {
+        segs += `<i class="w" style="left:${x(a)}%;width:${Math.max(0.3, x(b) - x(a))}%" title="${new Date(a).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} – ${new Date(b).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}"></i>`;
+        if (endTurn) { const next = s.intervals[i + 1]?.[0] ?? end, until = Math.min(next, b + 45 * 60000); if (until > b) segs += `<i class="a" style="left:${x(b)}%;width:${x(until) - x(b)}%"></i>`; }
+      });
+      return `<div class="tl-row"><div class="name" title="${esc(s.title || s.project)}"><span class="proj"><i style="background:${color(s.project)}"></i></span> ${esc(s.title || s.project)}</div><div class="tl-track">${segs}</div></div>`;
+    }).join('');
+    const ticks = []; for (let t = new Date(start); t.getTime() <= end; t.setHours(t.getHours() + 1)) ticks.push(`<span style="left:${x(t.getTime())}%">${t.getHours()}h</span>`);
+    $('tl-axis').innerHTML = ticks.join('');
+  } else { $('timeline').innerHTML = `<div class="empty">Pas encore d'activité aujourd'hui.</div>`; $('tl-axis').innerHTML = ''; }
+
+  // par projet : aujourd'hui, 7 ou 30 jours
+  const names = new Set([...agents.map((a) => a.project), ...Object.keys(stats.projects || {})]);
+  const range = projRange === 'today' ? null : src.slice(-Number(projRange));
+  if (range) for (const d of range) for (const n of Object.keys(d.projects || {})) names.add(n);
+  const rows = [...names].map((n) => {
+    const p = stats.projects?.[n];
+    let tot = { output: p?.tokens.output || 0, cost: p?.cost || 0, activeMs: p?.activeMs || 0, calls: p?.calls || 0 };
+    if (range) { tot = { output: 0, cost: 0, activeMs: 0, calls: 0 }; for (const d of range) { const q = d.projects?.[n]; if (q) for (const k of Object.keys(tot)) tot[k] += q[k] || 0; } }
+    return { n, p, tot, ag: agents.filter((a) => a.project === n), spark: stats.projectHistory?.[n] || [] };
+  }).filter((r) => r.ag.length || r.tot.output || r.tot.calls).sort((a, b) => b.tot.output - a.tot.output);
+  $('projects').innerHTML = rows.map(({ n, p, tot, ag, spark }) => {
+    const mx = Math.max(1, ...spark);
+    return `<div class="card pcard" style="border-left-color:${color(n)}">
+      <h3>${esc(n)} ${ag.map((a) => `<span class="dot ${a.status}" title="${esc(a.title)}"></span>`).join('')}</h3>
+      <small class="muted">${ag.length} agent${ag.length > 1 ? 's' : ''}${projRange === 'today' ? '' : ` · ${projRange} derniers jours`}</small>
+      <div class="nums"><div><b>${fmt(tot.output)}</b><small>tokens</small></div><div><b>${dur(tot.activeMs)}</b><small>temps de travail</small></div><div><b>${eur(tot.cost)}</b><small>coût estimé</small></div></div>
+      <div class="files">${p?.files?.length ? p.files.map(([f, c]) => `${esc(f)} ×${c}`).join(' · ') : `${tot.calls} actions`}</div>
+      <div class="spark" style="color:${color(n)}" title="Tokens générés sur 14 jours">${spark.map((v) => `<i style="height:${Math.max(4, (v / mx) * 100)}%"></i>`).join('')}</div>
+    </div>`;
+  }).join('') || `<div class="empty">Aucun projet actif.</div>`;
+
+  $('note').textContent = `Coût estimé au tarif public de l'API (un abonnement Claude n'est pas facturé ainsi), converti à ${fx.eurPerUsd.toFixed(3).replace('.', ',')} € pour 1 $ (${fx.live ? 'taux BCE du ' + fx.date : 'taux par défaut'}). Temps de travail : périodes où l'agent enchaîne les réponses à moins de 5 minutes d'écart.`;
+}
+
+// actions sur les cartes « ils t'attendent »
+$('waiting').addEventListener('click', async (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
+  const card = e.target.closest('.wait'), id = card.dataset.id, a = data.agents.find((x) => x.id === id), msg = card.querySelector('.msg');
+  if (act === 'reply') { openReply.has(id) ? openReply.delete(id) : openReply.add(id); card.querySelector('.reply').classList.toggle('open'); card.querySelector('textarea').focus(); return; }
+  if (act === 'copy') {
+    const cmd = `cd '${(a.launchCwd || a.cwd || '').replace(/'/g, `'\\''`)}' && claude --resume ${a.id}`;
+    try { await navigator.clipboard.writeText(cmd); msg.textContent = '✓ Commande copiée'; } catch { msg.textContent = cmd; }
+    return;
+  }
+  const text = act === 'send' ? card.querySelector('textarea').value : '';
+  if (act === 'send' && !text.trim()) { msg.textContent = "Écris d'abord ta réponse."; return; }
+  msg.textContent = 'Ouverture du Terminal…';
+  try {
+    const r = await fetch('/api/resume', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN }, body: JSON.stringify({ id, text }) });
+    const j = await r.json();
+    msg.textContent = r.ok ? '✓ Session ouverte dans le Terminal' : `Échec : ${j.error}`;
+    if (r.ok && act === 'send') { card.querySelector('textarea').value = ''; openReply.delete(id); }
+  } catch (err) { msg.textContent = `Échec : ${err.message}`; }
+});
+$('waiting').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) e.target.closest('.wait')?.querySelector('[data-act=send]').click(); });
+
+// le chrono d'attente avance chaque seconde, sans tout redessiner
+setInterval(() => document.querySelectorAll('[data-since]').forEach((el) => (el.textContent = since(el.dataset.since))), 1000);
+load(); loadHistory();
+setInterval(() => { if (document.activeElement?.tagName !== 'TEXTAREA') load(); }, 5000);
+setInterval(loadHistory, 60000);
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Données locales : historique des stats (noms de projets et de fichiers) et clé d'accès wifi
+data/
+
+# Réglages personnels (partir de config.example.json ou d'un fichier de exemples/)
+config.json
+
+.DS_Store
+node_modules/
+
+# Réglages locaux de l'éditeur et de Claude Code
+.claude/

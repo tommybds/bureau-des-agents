@@ -1,0 +1,14 @@
+{
+  "lieu": {
+    "nom": "Saint-Herblain",
+    "latitude": 47.2122,
+    "longitude": -1.6497,
+    "fenetres": "est"
+  },
+  "decor": "mon-bureau",
+  "costumes": {},
+  "batiment": {
+    "etage": 4,
+    "etages": 5
+  }
+}
